@@ -42,7 +42,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         <div className="relative mb-1">
           <div className="w-20 h-24 mx-auto overflow-hidden flex items-center justify-center">
             <img
-              src="/hasnain.png"
+              src={`${import.meta.env.BASE_URL?.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL || './'}/`}hasnain.png`}
               alt="Hasnain"
               className="w-full h-full object-contain"
             />

@@ -5,11 +5,14 @@ class SoundSystem {
   private sfxVolume: number = 0.9;
   private initialized: boolean = false;
 
-  // Audio URLs
-  private readonly yeahUrl: string = '/assets/aistudio/audio-editor.online_9763185a.mp3';
-  private readonly ohNoUrl: string = '/assets/aistudio/Oh_No_b61397a1.mp3';
-  private readonly gameStartUrl: string = '/assets/aistudio/Game_Start_0dfceae1.mp3';
-  private readonly bhaiUrl: string = '/assets/aistudio/Bhai_Kya_Baat_Hai_db6abbf5.mp3';
+  // Audio URLs with relative base support for GitHub Pages subpath hosting
+  private static readonly base = import.meta.env.BASE_URL?.endsWith('/')
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL || './'}/`;
+  private readonly yeahUrl: string = `${SoundSystem.base}assets/aistudio/audio-editor.online_9763185a.mp3`;
+  private readonly ohNoUrl: string = `${SoundSystem.base}assets/aistudio/Oh_No_b61397a1.mp3`;
+  private readonly gameStartUrl: string = `${SoundSystem.base}assets/aistudio/Game_Start_0dfceae1.mp3`;
+  private readonly bhaiUrl: string = `${SoundSystem.base}assets/aistudio/Bhai_Kya_Baat_Hai_db6abbf5.mp3`;
 
   // Decoded Web Audio Buffers for instant zero-latency playback
   private yeahBuffer: AudioBuffer | null = null;

@@ -117,7 +117,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = React.memo(
               {/* Hasnain Face Mini-Badge */}
               <div className="w-16 h-16 rounded-full bg-white/90 p-1 shadow-lg border-2 border-amber-300 mb-2 flex items-center justify-center overflow-hidden animate-bounce">
                 <img
-                  src="/hasnain.png"
+                  src={`${import.meta.env.BASE_URL?.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL || './'}/`}hasnain.png`}
                   alt="Hasnain"
                   className="w-full h-full object-contain"
                 />
