@@ -1,0 +1,6 @@
+{
+  "name": "Flying Hasnain",
+  "description": "Tap. Fly. Survive. Repeat. The ultimate addictive flying arcade game starring Hasnain.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
