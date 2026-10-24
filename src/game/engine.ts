@@ -74,10 +74,17 @@ export class GameEngine {
   private cachedSkyGrad: CanvasGradient | null = null;
   private cachedSkyHeight: number = 0;
 
+  // 3-Second Countdown State
+  public countdownTime: number = 3;
+  public countdownDisplayNumber: number = 3;
+  private playedGameStartVoice: boolean = false;
+  private playedNewBestVoice: boolean = false;
+
   // Callbacks to React
   public onStateChange?: (state: GameState) => void;
   public onScoreChange?: (score: number) => void;
   public onCoinChange?: (coins: number) => void;
+  public onCountdownChange?: (count: number) => void;
   public onGameOver?: (summary: {
     score: number;
     coinsEarned: number;
@@ -134,23 +141,34 @@ export class GameEngine {
   // --- State Transitions ---
 
   public startReady() {
+    this.startCountdown();
+  }
+
+  public startCountdown() {
     this.syncEquippedCharacter();
     this.resetFlightData();
-    this.setState('READY');
+    this.countdownTime = 3.0;
+    this.countdownDisplayNumber = 3;
+    this.playedGameStartVoice = false;
+    this.playedNewBestVoice = false;
+    this.setState('COUNTDOWN');
+    sounds.init();
+    this.onCountdownChange?.(3);
   }
 
   public flap() {
     sounds.init();
 
-    if (this.state === 'MENU' || this.state === 'GAMEOVER') {
-      this.startReady();
+    if (this.state === 'MENU' || this.state === 'GAMEOVER' || this.state === 'READY') {
+      this.startCountdown();
       return;
     }
 
-    if (this.state === 'READY') {
-      this.setState('PLAYING');
-      this.runStartTime = Date.now();
-      this.applyFlapImpulse();
+    if (this.state === 'COUNTDOWN') {
+      // Spam "Yeah!" voice on tap even during countdown if player taps eagerly
+      sounds.playYeahVoice();
+      this.squashScaleY = 0.88;
+      this.squashScaleX = 1.12;
       return;
     }
 
@@ -212,9 +230,7 @@ export class GameEngine {
   }
 
   public restart() {
-    this.syncEquippedCharacter();
-    this.resetFlightData();
-    this.setState('READY');
+    this.startCountdown();
   }
 
   public quitToMenu() {
@@ -290,11 +306,36 @@ export class GameEngine {
     const flapSpeed = this.state === 'PLAYING' ? 16 : 7;
     this.wingPhase += clampedDt * flapSpeed;
 
-    if (this.state === 'MENU' || this.state === 'READY') {
+    if (this.state === 'MENU' || this.state === 'READY' || this.state === 'COUNTDOWN') {
       const floatOffset = Math.sin(this.wingPhase * 0.5) * 0.6;
       this.playerY += floatOffset;
       this.tiltAngle = floatOffset * 0.06;
       this.groundOffset = (this.groundOffset + 1.2 * clampedDt * 60) % 40;
+
+      if (this.state === 'COUNTDOWN') {
+        this.countdownTime -= clampedDt;
+
+        // Current count integer: 3, 2, 1
+        const currentCount = Math.max(1, Math.min(3, Math.ceil(this.countdownTime)));
+        if (currentCount !== this.countdownDisplayNumber) {
+          this.countdownDisplayNumber = currentCount;
+          this.onCountdownChange?.(currentCount);
+
+          // On last 1 say this sound Game Start
+          if (currentCount === 1 && !this.playedGameStartVoice) {
+            this.playedGameStartVoice = true;
+            sounds.playGameStart();
+          }
+        }
+
+        // When countdown finishes: start flight!
+        if (this.countdownTime <= 0) {
+          this.setState('PLAYING');
+          this.runStartTime = Date.now();
+          this.applyFlapImpulse();
+          return;
+        }
+      }
       return;
     }
 
@@ -386,7 +427,8 @@ export class GameEngine {
           this.score > this.bestScoreAtStart
         ) {
           this.isNewBestRun = true;
-          sounds.playYeahVoice();
+          this.playedNewBestVoice = true;
+          sounds.playBhaiKyaBaatHai();
           this.spawnNewBestCelebration();
         }
 
@@ -532,6 +574,7 @@ export class GameEngine {
     this.hitstopTimer = 0.05;
 
     sounds.playHit();
+    sounds.playOhNo();
     sounds.playTumble();
 
     if (navigator.vibrate) {
@@ -575,8 +618,9 @@ export class GameEngine {
       this.runDurationSec
     );
 
-    if (result.isNewBest) {
-      sounds.playYeahVoice();
+    if (result.isNewBest && !this.playedNewBestVoice && this.score > 0) {
+      this.playedNewBestVoice = true;
+      sounds.playBhaiKyaBaatHai();
       this.spawnNewBestCelebration();
     }
 

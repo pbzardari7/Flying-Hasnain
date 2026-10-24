@@ -1,31 +1,65 @@
 class SoundSystem {
   private ctx: AudioContext | null = null;
-  private voiceBuffer: AudioBuffer | null = null;
-  private voicePool: HTMLAudioElement[] = [];
-  private poolIndex: number = 0;
   private soundEnabled: boolean = true;
   private voiceoverEnabled: boolean = true;
-  private sfxVolume: number = 0.85;
+  private sfxVolume: number = 0.9;
   private initialized: boolean = false;
-  private audioUrl: string = '/assets/aistudio/audio-editor.online_9763185a.mp3';
+
+  // Audio URLs
+  private readonly yeahUrl: string = '/assets/aistudio/audio-editor.online_9763185a.mp3';
+  private readonly ohNoUrl: string = '/assets/aistudio/Oh_No_b61397a1.mp3';
+  private readonly gameStartUrl: string = '/assets/aistudio/Game_Start_0dfceae1.mp3';
+  private readonly bhaiUrl: string = '/assets/aistudio/Bhai_Kya_Baat_Hai_db6abbf5.mp3';
+
+  // Decoded Web Audio Buffers for instant zero-latency playback
+  private yeahBuffer: AudioBuffer | null = null;
+  private ohNoBuffer: AudioBuffer | null = null;
+  private gameStartBuffer: AudioBuffer | null = null;
+  private bhaiBuffer: AudioBuffer | null = null;
+
+  // HTMLAudioElement Fallback Pools
+  private yeahPool: HTMLAudioElement[] = [];
+  private yeahPoolIndex: number = 0;
+  private ohNoPool: HTMLAudioElement[] = [];
+  private gameStartPool: HTMLAudioElement[] = [];
+  private bhaiPool: HTMLAudioElement[] = [];
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Create a pool of 8 Audio elements for instant polyphonic spamming fallback
       try {
+        // Pool for rapid spamming of "Yeah!"
         for (let i = 0; i < 8; i++) {
-          const audio = new Audio(this.audioUrl);
+          const audio = new Audio(this.yeahUrl);
           audio.preload = 'auto';
-          this.voicePool.push(audio);
+          this.yeahPool.push(audio);
+        }
+        for (let i = 0; i < 3; i++) {
+          const ohNo = new Audio(this.ohNoUrl);
+          ohNo.preload = 'auto';
+          this.ohNoPool.push(ohNo);
+
+          const gs = new Audio(this.gameStartUrl);
+          gs.preload = 'auto';
+          this.gameStartPool.push(gs);
+
+          const bhai = new Audio(this.bhaiUrl);
+          bhai.preload = 'auto';
+          this.bhaiPool.push(bhai);
         }
       } catch (err) {
-        console.warn('Audio pool initialization:', err);
+        console.warn('Audio fallback pool init:', err);
       }
     }
   }
 
   public init() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return;
+    }
+
     try {
       const AudioCtx =
         window.AudioContext ||
@@ -35,26 +69,31 @@ class SoundSystem {
       if (AudioCtx) {
         this.ctx = new AudioCtx();
         if (this.ctx.state === 'suspended') {
-          this.ctx.resume();
+          this.ctx.resume().catch(() => {});
         }
 
-        // Fetch and decode into Web Audio buffer for true 0ms rapid polyphonic playback
-        fetch(this.audioUrl)
-          .then((res) => res.arrayBuffer())
-          .then((buf) => {
-            if (this.ctx) {
-              return this.ctx.decodeAudioData(buf);
-            }
-            return null;
-          })
-          .then((decoded) => {
-            if (decoded) {
-              this.voiceBuffer = decoded;
-            }
-          })
-          .catch((err) => {
-            console.warn('Audio buffer decode fallback to audio elements:', err);
-          });
+        // Helper to fetch and decode
+        const loadBuffer = (url: string, onDecoded: (b: AudioBuffer) => void) => {
+          fetch(url)
+            .then((res) => res.arrayBuffer())
+            .then((buf) => {
+              if (this.ctx) {
+                return this.ctx.decodeAudioData(buf);
+              }
+              return null;
+            })
+            .then((decoded) => {
+              if (decoded) onDecoded(decoded);
+            })
+            .catch((err) => {
+              console.warn(`Buffer decode fallback for ${url}:`, err);
+            });
+        };
+
+        loadBuffer(this.yeahUrl, (b) => (this.yeahBuffer = b));
+        loadBuffer(this.ohNoUrl, (b) => (this.ohNoBuffer = b));
+        loadBuffer(this.gameStartUrl, (b) => (this.gameStartBuffer = b));
+        loadBuffer(this.bhaiUrl, (b) => (this.bhaiBuffer = b));
       }
 
       this.initialized = true;
@@ -69,12 +108,69 @@ class SoundSystem {
     this.sfxVolume = Math.max(0, Math.min(1, volume));
 
     // Update pool volumes
-    for (const a of this.voicePool) {
-      a.volume = this.sfxVolume;
+    const updatePool = (pool: HTMLAudioElement[]) => {
+      for (const a of pool) {
+        a.volume = this.sfxVolume;
+      }
+    };
+    updatePool(this.yeahPool);
+    updatePool(this.ohNoPool);
+    updatePool(this.gameStartPool);
+    updatePool(this.bhaiPool);
+  }
+
+  // Generic buffer / pool playback helper
+  private playClip(
+    buffer: AudioBuffer | null,
+    pool: HTMLAudioElement[],
+    pitchVariation: number = 0,
+    gainMultiplier: number = 1.0
+  ) {
+    if (!this.soundEnabled || !this.voiceoverEnabled) return;
+
+    if (this.ctx) {
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+
+      if (buffer) {
+        try {
+          const source = this.ctx.createBufferSource();
+          source.buffer = buffer;
+          if (pitchVariation > 0) {
+            source.playbackRate.value =
+              1 - pitchVariation / 2 + Math.random() * pitchVariation;
+          }
+          const gainNode = this.ctx.createGain();
+          gainNode.gain.setValueAtTime(
+            this.sfxVolume * gainMultiplier,
+            this.ctx.currentTime
+          );
+
+          source.connect(gainNode);
+          gainNode.connect(this.ctx.destination);
+          source.start(0);
+          return;
+        } catch (err) {
+          console.warn('Web Audio playback error:', err);
+        }
+      }
+    }
+
+    // Fallback using HTMLAudioElement pool
+    if (pool.length > 0) {
+      try {
+        const audio = pool[Math.floor(Math.random() * pool.length)];
+        audio.currentTime = 0;
+        audio.volume = Math.max(0, Math.min(1, this.sfxVolume * gainMultiplier));
+        audio.play().catch(() => {});
+      } catch {
+        // Ignore
+      }
     }
   }
 
-  // Flap / wing whoosh
+  // Flap / wing whoosh (synthesized)
   public playFlap() {
     if (!this.soundEnabled || !this.ctx) return;
     try {
@@ -99,53 +195,24 @@ class SoundSystem {
     }
   }
 
-  // Play Hasnain's authentic "Yeah!" voice audio clip with rapid polyphonic spamming!
+  // 1. Hasnain's authentic "Yeah!" voice on every flap/click
   public playYeahVoice() {
-    if (!this.soundEnabled || !this.voiceoverEnabled) return;
+    this.playClip(this.yeahBuffer, this.yeahPool, 0.08, 1.0);
+  }
 
-    // 1. Preferred: Web Audio Buffer Source (zero latency, unlimited concurrent spamming)
-    if (this.ctx && this.voiceBuffer) {
-      try {
-        if (this.ctx.state === 'suspended') {
-          this.ctx.resume();
-        }
-        const source = this.ctx.createBufferSource();
-        source.buffer = this.voiceBuffer;
+  // 2. "Oh No" audio clip when bird hits / dies
+  public playOhNo() {
+    this.playClip(this.ohNoBuffer, this.ohNoPool, 0, 1.15);
+  }
 
-        // Slight micro-pitch variation (0.97 - 1.05) so rapid spamming sounds organic & dynamic!
-        source.playbackRate.value = 0.97 + Math.random() * 0.08;
+  // 3. "Game Start" audio clip on the last count (1) of the 3-second countdown
+  public playGameStart() {
+    this.playClip(this.gameStartBuffer, this.gameStartPool, 0, 1.15);
+  }
 
-        const gainNode = this.ctx.createGain();
-        gainNode.gain.setValueAtTime(this.sfxVolume, this.ctx.currentTime);
-
-        source.connect(gainNode);
-        gainNode.connect(this.ctx.destination);
-
-        source.start(0);
-        return;
-      } catch (err) {
-        console.warn('Web Audio source play error:', err);
-      }
-    }
-
-    // 2. Fallback: Round-robin Audio element pool
-    if (this.voicePool.length > 0) {
-      try {
-        const audio = this.voicePool[this.poolIndex];
-        this.poolIndex = (this.poolIndex + 1) % this.voicePool.length;
-
-        audio.currentTime = 0;
-        audio.volume = this.sfxVolume;
-        audio.play().catch(() => {
-          // If browser restricts before gesture, fallback
-          this.playFanfare();
-        });
-      } catch {
-        this.playFanfare();
-      }
-    } else {
-      this.playFanfare();
-    }
+  // 4. "Bhai kya baat hai" audio clip when player makes a new best score
+  public playBhaiKyaBaatHai() {
+    this.playClip(this.bhaiBuffer, this.bhaiPool, 0, 1.2);
   }
 
   // Score obstacle point

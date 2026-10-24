@@ -1,10 +1,12 @@
 export type GameState =
   | 'MENU'
   | 'READY'
+  | 'COUNTDOWN'
   | 'PLAYING'
   | 'PAUSED'
   | 'CRASHED'
   | 'GAMEOVER';
+
 
 export type ActiveModal =
   | null

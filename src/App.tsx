@@ -35,6 +35,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>('MENU');
   const [score, setScore] = useState<number>(0);
   const [coinsInRun, setCoinsInRun] = useState<number>(0);
+  const [countdown, setCountdown] = useState<number>(3);
   const [gameOverSummary, setGameOverSummary] = useState<{
     score: number;
     coinsEarned: number;
@@ -95,6 +96,10 @@ export default function App() {
       setCoinsInRun(c);
     };
 
+    engine.onCountdownChange = (cnt) => {
+      setCountdown(cnt);
+    };
+
     engine.onGameOver = (summary) => {
       setGameOverSummary(summary);
       syncStateFromStorage();
@@ -104,6 +109,7 @@ export default function App() {
       engine.onStateChange = undefined;
       engine.onScoreChange = undefined;
       engine.onCoinChange = undefined;
+      engine.onCountdownChange = undefined;
       engine.onGameOver = undefined;
     };
   }, [engine, settings, syncStateFromStorage]);
@@ -134,17 +140,21 @@ export default function App() {
         if (activeModal) return;
 
         if (gameState === 'MENU') {
-          engine.startReady();
+          engine.startCountdown();
           return;
         }
 
         if (gameState === 'GAMEOVER') {
           setGameOverSummary(null);
-          engine.restart();
+          engine.startCountdown();
           return;
         }
 
-        if (gameState === 'READY' || gameState === 'PLAYING') {
+        if (
+          gameState === 'READY' ||
+          gameState === 'COUNTDOWN' ||
+          gameState === 'PLAYING'
+        ) {
           engine.flap();
         }
       }
@@ -159,17 +169,21 @@ export default function App() {
     if (activeModal) return;
 
     if (gameState === 'MENU') {
-      engine.startReady();
+      engine.startCountdown();
       return;
     }
 
     if (gameState === 'GAMEOVER') {
       setGameOverSummary(null);
-      engine.restart();
+      engine.startCountdown();
       return;
     }
 
-    if (gameState === 'READY' || gameState === 'PLAYING') {
+    if (
+      gameState === 'READY' ||
+      gameState === 'COUNTDOWN' ||
+      gameState === 'PLAYING'
+    ) {
       engine.flap();
     }
   };
@@ -177,12 +191,12 @@ export default function App() {
   const handleStartPlay = () => {
     setActiveModal(null);
     setGameOverSummary(null);
-    engine.startReady();
+    engine.startCountdown();
   };
 
   const handleTryAgain = () => {
     setGameOverSummary(null);
-    engine.restart();
+    engine.startCountdown();
   };
 
   const handleHome = () => {
@@ -269,12 +283,14 @@ export default function App() {
       <GameCanvas
         engine={engine}
         gameState={gameState}
+        countdown={countdown}
         onTap={handleCanvasTap}
       />
 
       {/* In-Game Ultra-Clean Score & Pause */}
       {(gameState === 'PLAYING' ||
         gameState === 'READY' ||
+        gameState === 'COUNTDOWN' ||
         gameState === 'PAUSED' ||
         gameState === 'CRASHED') && (
         <GameHUD

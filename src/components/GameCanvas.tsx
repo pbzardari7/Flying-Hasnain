@@ -5,11 +5,12 @@ import { GameState } from '../game/types';
 interface GameCanvasProps {
   engine: GameEngine;
   gameState: GameState;
+  countdown: number;
   onTap: () => void;
 }
 
 export const GameCanvas: React.FC<GameCanvasProps> = React.memo(
-  ({ engine, gameState, onTap }) => {
+  ({ engine, gameState, countdown, onTap }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animFrameId = useRef<number | null>(null);
@@ -105,6 +106,74 @@ export const GameCanvas: React.FC<GameCanvasProps> = React.memo(
           ref={canvasRef}
           className="block w-full h-full touch-none select-none"
         />
+
+        {/* 3-Second Kid-Friendly Countdown Overlay */}
+        {gameState === 'COUNTDOWN' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-black/20 backdrop-blur-[1px] transition-all">
+            <div
+              key={countdown}
+              className="flex flex-col items-center justify-center animate-in zoom-in-50 duration-200"
+            >
+              {/* Hasnain Face Mini-Badge */}
+              <div className="w-16 h-16 rounded-full bg-white/90 p-1 shadow-lg border-2 border-amber-300 mb-2 flex items-center justify-center overflow-hidden animate-bounce">
+                <img
+                  src="/hasnain.png"
+                  alt="Hasnain"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* Giant Countdown Number */}
+              <div
+                className={`font-arcade text-8xl font-black drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)] tabular-nums transition-transform ${
+                  countdown === 1
+                    ? 'text-emerald-400 scale-110'
+                    : countdown === 2
+                    ? 'text-amber-400 scale-105'
+                    : 'text-sky-300'
+                }`}
+                style={{
+                  textShadow:
+                    countdown === 1
+                      ? '0 6px 0 #065f46, 0 10px 20px rgba(0,0,0,0.6)'
+                      : countdown === 2
+                      ? '0 6px 0 #b45309, 0 10px 20px rgba(0,0,0,0.6)'
+                      : '0 6px 0 #0369a1, 0 10px 20px rgba(0,0,0,0.6)',
+                }}
+              >
+                {countdown}
+              </div>
+
+              {/* Countdown Status Pill */}
+              <div
+                className={`mt-3 px-5 py-1.5 rounded-full font-arcade text-sm font-black shadow-lg uppercase tracking-wider flex items-center gap-1.5 border ${
+                  countdown === 1
+                    ? 'bg-emerald-500 border-emerald-300 text-white animate-pulse'
+                    : countdown === 2
+                    ? 'bg-amber-500 border-amber-300 text-amber-950'
+                    : 'bg-sky-500 border-sky-300 text-white'
+                }`}
+              >
+                {countdown === 1 ? (
+                  <>
+                    <span>🚀</span>
+                    <span>GAME START!</span>
+                  </>
+                ) : countdown === 2 ? (
+                  <>
+                    <span>⚡</span>
+                    <span>GET READY!</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>READY...</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ready State Tap-To-Fly Prompt */}
         {gameState === 'READY' && (
